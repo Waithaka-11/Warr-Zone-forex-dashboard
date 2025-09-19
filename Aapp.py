@@ -1,10 +1,7 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime, date
-import json
-from streamlit.components.v1 import html
+import altair as alt
 
 # Page configuration
 st.set_page_config(
@@ -197,6 +194,24 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    
+    /* Table styling */
+    .dataframe td, .dataframe th {
+        border: none;
+        padding: 8px;
+    }
+    
+    .dataframe tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+    
+    .dataframe th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: var(--secondary);
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -405,25 +420,21 @@ with col2:
     """, unsafe_allow_html=True)
     
     if ranked_traders:
-        labels = [f"{trader[0]} ({trader[1]['win_rate']}%)" for trader in ranked_traders]
-        values = [trader[1]['win_rate'] for trader in ranked_traders]
+        chart_data = pd.DataFrame({
+            'Trader': [trader[0] for trader in ranked_traders],
+            'Win Rate': [trader[1]['win_rate'] for trader in ranked_traders]
+        })
         
-        colors = ['rgba(243, 156, 18, 0.8)', 'rgba(127, 140, 141, 0.8)', 'rgba(205, 127, 50, 0.8)']
-        
-        fig = go.Figure(data=[go.Pie(
-            labels=labels, 
-            values=values,
-            hole=0.5,
-            marker_colors=colors
-        )])
-        
-        fig.update_layout(
-            height=300,
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+        chart = alt.Chart(chart_data).mark_arc().encode(
+            theta=alt.Theta(field="Win Rate", type="quantitative"),
+            color=alt.Color(field="Trader", type="nominal", 
+                          scale=alt.Scale(range=['#f39c12', '#7f8c8d', '#cd7f32'])),
+            tooltip=['Trader', 'Win Rate']
+        ).properties(
+            height=300
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.altair_chart(chart, use_container_width=True)
     
     # Trader of the month
     st.markdown("""
@@ -457,7 +468,7 @@ with col2:
         </div>
     """, unsafe_allow_html=True)
     
-    # Sample instrument performance data (would need to be calculated from trades in a real app)
+    # Sample instrument performance data
     instrument_data = {
         'Instrument': ['XAUUSD', 'USOIL', 'BTCUSD', 'USTECH'],
         'Waithaka': [75, 80, 55, 70],
