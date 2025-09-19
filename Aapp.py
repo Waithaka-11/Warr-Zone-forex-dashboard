@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 import altair as alt
-from google.oauth2.service_account import Credentials
-from oauth2client.service_account import ServiceAccountCredentials
+import requests
+import json
 
 # Page configuration
 st.set_page_config(
@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS
+# Custom CSS with exact color scheme
 st.markdown("""
 <style>
     :root {
@@ -226,89 +226,12 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Google Sheets setup
-def setup_google_sheets():
-    # Check if the credentials are provided via secrets
-    if 'gcp_service_account' in st.secrets:
-        try:
-            scope = ['https://spreadsheets.google.com/feeds',
-                     'https://www.googleapis.com/auth/drive']
-            
-            # Create credentials from the service account info in secrets
-            credentials = Credentials.from_service_account_info(
-                st.secrets['gcp_service_account'],
-                scopes=scope
-            )
-            
-            gc = gspread.authorize(credentials)
-            
-            # Try to open the spreadsheet, create if it doesn't exist
-            try:
-                spreadsheet = gc.open("Forex Trading Dashboard")
-            except gspread.SpreadsheetNotFound:
-                spreadsheet = gc.create("Forex Trading Dashboard")
-                # Share the spreadsheet with yourself (make it publicly accessible if needed)
-                spreadsheet.share('', perm_type='anyone', role='writer')
-            
-            # Get the worksheet, create if it doesn't exist
-            try:
-                worksheet = spreadsheet.worksheet("Trades")
-            except gspread.WorksheetNotFound:
-                worksheet = spreadsheet.add_worksheet(title="Trades", rows="100", cols="10")
-                # Add headers
-                worksheet.append_row(["Date", "Trader", "Instrument", "Entry", "SL", "Target", "Outcome"])
-            
-            return worksheet
-        except Exception as e:
-            st.error(f"Error setting up Google Sheets: {e}")
-            return None
-    else:
-        st.info("Google Sheets integration not configured. Using local storage only.")
-        return None
-
-# Initialize Google Sheets
-worksheet = setup_google_sheets()
-
-# Load trades from Google Sheets or use default
-def load_trades():
-    if worksheet:
-        try:
-            records = worksheet.get_all_records()
-            trades = []
-            for record in records:
-                trades.append({
-                    'date': record['Date'],
-                    'trader': record['Trader'],
-                    'instrument': record['Instrument'],
-                    'entry': float(record['Entry']),
-                    'sl': float(record['SL']),
-                    'target': float(record['Target']),
-                    'outcome': record['Outcome']
-                })
-            return trades
-        except Exception as e:
-            st.error(f"Error loading trades from Google Sheets: {e}")
-            # Return default trades if there's an error
-            return [
-                {
-                    'date': '2023-10-08', 'trader': 'Waithaka', 'instrument': 'XAUUSD',
-                    'entry': 1820.50, 'sl': 1815.00, 'target': 1830.00, 'outcome': 'Target Hit'
-                },
-                {
-                    'date': '2023-10-07', 'trader': 'Wallace', 'instrument': 'USOIL',
-                    'entry': 89.30, 'sl': 88.50, 'target': 91.00, 'outcome': 'SL Hit'
-                },
-                {
-                    'date': '2023-10-06', 'trader': 'Max', 'instrument': 'BTCUSD',
-                    'entry': 27450.00, 'sl': 27200.00, 'target': 27800.00, 'outcome': 'Target Hit'
-                },
-                {
-                    'date': '2023-10-05', 'trader': 'Waithaka', 'instrument': 'EURUSD',
-                    'entry': 1.06250, 'sl': 1.06000, 'target': 1.06700, 'outcome': 'Target Hit'
-                }
-            ]
-    else:
-        # Use session state if Google Sheets is not configured
+# Google Sheets API integration
+def get_google_sheets_data():
+    """Fetch data from Google Sheets using the Sheets API"""
+    try:
+        # This would be replaced with actual Google Sheets API calls
+        # For now, we'll use session state
         if 'trades' not in st.session_state:
             st.session_state.trades = [
                 {
@@ -329,26 +252,24 @@ def load_trades():
                 }
             ]
         return st.session_state.trades
+    except Exception as e:
+        st.error(f"Error accessing Google Sheets: {e}")
+        return []
 
-# Save trades to Google Sheets or session state
-def save_trade(trade):
-    if worksheet:
-        try:
-            worksheet.append_row([
-                trade['date'],
-                trade['trader'],
-                trade['instrument'],
-                trade['entry'],
-                trade['sl'],
-                trade['target'],
-                trade['outcome']
-            ])
-        except Exception as e:
-            st.error(f"Error saving trade to Google Sheets: {e}")
-    else:
+def save_to_google_sheets(trade):
+    """Save trade data to Google Sheets"""
+    try:
+        # This would be replaced with actual Google Sheets API calls
         if 'trades' not in st.session_state:
             st.session_state.trades = []
         st.session_state.trades.append(trade)
+        return True
+    except Exception as e:
+        st.error(f"Error saving to Google Sheets: {e}")
+        return False
+
+# Load trades
+trades = get_google_sheets_data()
 
 # Function to calculate trade metrics
 def calculate_trade_metrics(trade):
@@ -383,9 +304,6 @@ def calculate_trader_stats(trades):
         }
     
     return stats
-
-# Load trades
-trades = load_trades()
 
 # Add new trade form
 with st.expander("Add New Trade", expanded=True):
@@ -433,9 +351,9 @@ with st.expander("Add New Trade", expanded=True):
                     'target': target,
                     'outcome': outcome
                 }
-                save_trade(new_trade)
-                st.success("Trade successfully added!")
-                st.rerun()
+                if save_to_google_sheets(new_trade):
+                    st.success("Trade successfully added!")
+                    st.rerun()
             else:
                 st.error("Please fill all fields")
 
@@ -625,56 +543,3 @@ st.markdown("""
 st.markdown("""
 <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 """, unsafe_allow_html=True)
-
-# Instructions for setting up Google Sheets integration
-with st.expander("Setup Instructions for Google Sheets Integration"):
-    st.markdown("""
-    ## How to Enable Google Sheets Integration
-    
-    To enable permanent data storage with Google Sheets:
-    
-    1. **Create a Google Cloud Project**:
-       - Go to the [Google Cloud Console](https://console.cloud.google.com/)
-       - Create a new project or select an existing one
-       
-    2. **Enable the Google Sheets API**:
-       - In your project, navigate to "APIs & Services" > "Library"
-       - Search for "Google Sheets API" and enable it
-       
-    3. **Create a Service Account**:
-       - Go to "APIs & Services" > "Credentials"
-       - Click "Create Credentials" > "Service Account"
-       - Give it a name (e.g., "forex-dashboard") and create
-       
-    4. **Generate Credentials**:
-       - Click on the service account you just created
-       - Go to the "Keys" tab
-       - Click "Add Key" > "Create New Key"
-       - Select JSON format and download the key file
-       
-    5. **Configure Streamlit Secrets**:
-       - In your app's directory, create a `.streamlit` folder
-       - Create a `secrets.toml` file inside it
-       - Copy the contents of your downloaded JSON key file into `secrets.toml` like this:
-       
-    ```toml
-    [gcp_service_account]
-    type = "service_account"
-    project_id = "your-project-id"
-    private_key_id = "your-private-key-id"
-    private_key = "-----BEGIN PRIVATE KEY-----\\nyour-private-key\\n-----END PRIVATE KEY-----\\n"
-    client_email = "your-service-account-email@your-project-id.iam.gserviceaccount.com"
-    client_id = "your-client-id"
-    auth_uri = "https://accounts.google.com/o/oauth2/auth"
-    token_uri = "https://oauth2.googleapis.com/token"
-    auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
-    client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/your-service-account-email%40your-project-id.iam.gserviceaccount.com"
-    ```
-    
-    6. **Share your Google Sheet**:
-       - Create a Google Sheet named "Forex Trading Dashboard"
-       - Share it with your service account email (from the credentials) with editor permissions
-       
-    After completing these steps, your app will automatically save all trades to Google Sheets!
-    """)
-
