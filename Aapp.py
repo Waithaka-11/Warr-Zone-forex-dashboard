@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 import altair as alt
-import gspread
 from google.oauth2.service_account import Credentials
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -678,3 +677,4 @@ with st.expander("Setup Instructions for Google Sheets Integration"):
        
     After completing these steps, your app will automatically save all trades to Google Sheets!
     """)
+
